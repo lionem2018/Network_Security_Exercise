@@ -55,9 +55,9 @@ int main(int argc, char* argv[]){
 	      	return -1;
 	}
 
-	if(SSU_SEC_sk_gen(&sk, &sk_len)){
+	if(SSU_SEC_sk_gen(&sk, &sk_len)){   // create secrete key
         	printf("AES Key generation OK. \n");
-    		printf("AES Key = %s\n", BinaryToBN(sk, sk_len));
+    		printf("AES Key = %s\n", BinaryToBN(sk, sk_len));  //pirnt secret key hex form
     		printf("AES Key len (bytes)  = %d\n", sk_len);
     	}
     	else{
@@ -68,12 +68,12 @@ int main(int argc, char* argv[]){
 	printf("\nm = %s\n", msg);
     	printf("m len (bytes) = %d\n", strlen(msg)+1);
 
-    	SSU_SEC_evp_aes_encrypt(msg, strlen(msg)+1, sk, cipher, &enc, &enc_len);
+    	SSU_SEC_evp_aes_encrypt(msg, strlen(msg)+1, sk, cipher, &enc, &enc_len); // encryption
     	printf("\n** EVP_AES Encryption OK.\n");
-    	printf("E(m) = %s\n", BinaryToBN(enc, enc_len));
+    	printf("E(m) = %s\n", BinaryToBN(enc, enc_len));  // print encrypted message
     	printf("E(m) len (bytes)  = %d\n", enc_len);
 
-    	SSU_SEC_evp_aes_decrypt(enc, enc_len, sk, cipher, &dec, &dec_len);
+    	SSU_SEC_evp_aes_decrypt(enc, enc_len, sk, cipher, &dec, &dec_len); //decryption
     	printf("\n** EVP_AES Decryption OK.\n");
     	printf("D(C) = %s\n", dec);
     	printf("D(C) len (bytes) = %d\n\n", dec_len);
@@ -86,36 +86,36 @@ int main(int argc, char* argv[]){
 
 int SSU_SEC_sk_gen(uchar **sk, int *sk_len)
 {
-    BIGNUM *rnd=BN_new();
+    BIGNUM *rnd=BN_new();  //BIGNUM object create and init
     int ret;
     char *seed_msg = "message for seed";
-    RAND_seed(seed_msg, strlen(seed_msg));                 // random seed
-    ret = BN_rand(rnd, SK_SIZE, 1, 0);
-    *sk_len = BN_num_bytes(rnd);
+    RAND_seed(seed_msg, strlen(seed_msg));                 // random seed(mix the seed_msg)
+    ret = BN_rand(rnd, SK_SIZE, 1, 0);      // create random number of SK_SIZE bits => rnd
+    *sk_len = BN_num_bytes(rnd);     // return byte size of rnd(BIGNUM)
     *sk = malloc(*sk_len);
-    BN_bn2bin(rnd, *sk);
+    BN_bn2bin(rnd, *sk);  // rnd => sk (big endian)
 
-    return ret;
+    return ret;  // 1: success to create rnd / 0: fail to create rnd
 }
 
 int SSU_SEC_evp_aes_encrypt(uchar *msg, int msg_len, uchar *sk, const EVP_CIPHER* cipher, uchar **enc, int *enc_len){
-	EVP_CIPHER_CTX ctx;
-	int ret = 1, tmplen;
+	EVP_CIPHER_CTX ctx;  // ctx: cipher information context
+	int ret = 1, tmplen;  // ret: success or fail / tmplen: 
 
-	EVP_CIPHER_CTX_init(&ctx);
-	EVP_EncryptInit_ex(&ctx, cipher, NULL, sk, IVseedConstant);
+	EVP_CIPHER_CTX_init(&ctx);  // init cipher info context
+	EVP_EncryptInit_ex(&ctx, cipher, NULL, sk, IVseedConstant);  // set cipher info for encryption (if ENGINE is null, defualt implementation)
 
-    	*enc = malloc(msg_len + AES_BLOCK_SIZE);
+    	*enc = malloc(msg_len + AES_BLOCK_SIZE); // create Dynamic space for encrypted message
 
-	if(!EVP_EncryptUpdate(&ctx, *enc, enc_len, msg, msg_len))
-		ret = 0;
+	if(!EVP_EncryptUpdate(&ctx, *enc, enc_len, msg, msg_len))  // mg =(encryption)=> enc (and save encryption length -> enc_len)
+		ret = 0;  // fail encryption
 
-	if(!EVP_EncryptFinal_ex(&ctx, *enc+(*enc_len), &tmplen))
+	if(!EVP_EncryptFinal_ex(&ctx, *enc+(*enc_len), &tmplen)) // encrypt data that remains in final block (Message Padding)
         ret = 0;
     
-    	*enc_len += tmplen;
+    	*enc_len += tmplen;  // add final encrypt lenght
     
-    	EVP_CIPHER_CTX_cleanup(&ctx);
+    	EVP_CIPHER_CTX_cleanup(&ctx);  // free context
 
     	return ret;
 }
@@ -129,10 +129,10 @@ int SSU_SEC_evp_aes_decrypt(uchar *enc, int enc_len, uchar *sk, const EVP_CIPHER
 
 	*dec = malloc(enc_len);
 
-	if(!EVP_DecryptUpdate(&ctx, *dec, dec_len, enc, enc_len))
+	if(!EVP_DecryptUpdate(&ctx, *dec, dec_len, enc, enc_len))  // enc =(decryption)=> dec (and save decryption length -> dec_len) <= except final block
 		ret = 0;
 
-	if(!EVP_DecryptFinal_ex(&ctx, *dec+(*dec_len), &tmplen))
+	if(!EVP_DecryptFinal_ex(&ctx, *dec+(*dec_len), &tmplen))  // decryption final block
         ret = 0;
     
     	*dec_len += tmplen;
